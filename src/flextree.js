@@ -4,7 +4,8 @@ import {version} from '../package.json';
 const defaults = Object.freeze({
   children: data => data.children,
   nodeSize: node => node.data.size,
-  spacing: 0,
+  xSpacing: 0,
+  ySpacing: 0,
 });
 
 // Create a layout function with customizable options. Per D3-style, the
@@ -12,6 +13,7 @@ const defaults = Object.freeze({
 // will compute the tree node positions based on the options in effect at the
 // time it is called.
 export default function flextree(options) {
+  options && options.spacing != null && (options.xSpacing = options.xSpacing || options.spacing);
   const opts = Object.assign({}, defaults, options);
   function accessor(name) {
     const opt = opts[name];
@@ -26,7 +28,8 @@ export default function flextree(options) {
 
   function getFlexNode() {
     const nodeSize = accessor('nodeSize');
-    const spacing = accessor('spacing');
+    const xSpacing = accessor('xSpacing');
+    const ySpacing = accessor('ySpacing');
     return class FlexNode extends hierarchy.prototype.constructor {
       constructor(data) {
         super(data);
@@ -37,7 +40,9 @@ export default function flextree(options) {
         return c;
       }
       get size() { return nodeSize(this); }
-      spacing(oNode) { return spacing(this, oNode); }
+      spacing(oNode) { return xSpacing(this, oNode); }
+      xSpacing(oNode) { return xSpacing(this, oNode); }
+      ySpacing(oNode) { return ySpacing(this, oNode); }
       get nodes() { return this.descendants(); }
       get xSize() { return this.size[0]; }
       get ySize() { return this.size[1]; }
@@ -87,7 +92,8 @@ export default function flextree(options) {
   function getWrapper() {
     const FlexNode = getFlexNode();
     const nodeSize = accessor('nodeSize');
-    const spacing = accessor('spacing');
+    const xSpacing = accessor('xSpacing');
+    const ySpacing = accessor('ySpacing');
     return class extends FlexNode {
       constructor(data) {
         super(data);
@@ -99,7 +105,9 @@ export default function flextree(options) {
         });
       }
       get size() { return nodeSize(this.data); }
-      spacing(oNode) { return spacing(this.data, oNode.data); }
+      spacing(oNode) { return xSpacing(this.data, oNode.data); }
+      xSpacing(oNode) { return xSpacing(this.data, oNode.data); }
+      ySpacing(oNode) { return ySpacing(this.data, oNode.data); }
       get x() { return this.data.x; }
       set x(v) { this.data.x = v; }
       get y() { return this.data.y; }
@@ -143,7 +151,13 @@ export default function flextree(options) {
       return arguments.length ? (opts.nodeSize = arg, layout) : opts.nodeSize;
     },
     spacing(arg) {
-      return arguments.length ? (opts.spacing = arg, layout) : opts.spacing;
+      return arguments.length ? (opts.xSpacing = arg, layout) : opts.xSpacing;
+    },
+    xSpacing(arg) {
+      return arguments.length ? (opts.xSpacing = arg, layout) : opts.xSpacing;
+    },
+    ySpacing(arg) {
+      return arguments.length ? (opts.ySpacing = arg, layout) : opts.ySpacing;
     },
     children(arg) {
       return arguments.length ? (opts.children = arg, layout) : opts.children;
@@ -175,7 +189,7 @@ const layoutChildren = (w, y = 0) => {
   w.y = y;
   (w.children || []).reduce((acc, kid) => {
     const [i, lastLows] = acc;
-    layoutChildren(kid, w.y + w.ySize);
+    layoutChildren(kid, w.y + w.ySize + w.ySpacing(w, kid));
     // The lowest vertical coordinate while extreme nodes still point
     // in current subtree.
     const lowY = (i === 0 ? kid.lExt : kid.rExt).bottom;
@@ -233,11 +247,11 @@ const separate = (w, i, lows) => {
     if (rContour.bottom > lows.lowY) lows = lows.next;
     // How far to the left of the right side of rContour is the left side
     // of lContour? First compute the center-to-center distance, then add
-    // the "spacing"
+    // the "xSpacing"
     const dist =
       (rSumMods + rContour.prelim) - (lSumMods + lContour.prelim) +
       rContour.xSize / 2 + lContour.xSize / 2 +
-      rContour.spacing(lContour);
+      rContour.xSpacing(lContour);
     if (dist > 0 || (dist < 0 && isFirst)) {
       lSumMods += dist;
       // Move subtree by changing relX.
